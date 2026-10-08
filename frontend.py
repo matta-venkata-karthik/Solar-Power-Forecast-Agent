@@ -1,10 +1,19 @@
-import streamlit as st
-import requests
+import time
 from pathlib import Path
 
-# ---------------------------------------------------
+import requests
+import streamlit as st
+
+
+# ==========================================================
+# Configuration
+# ==========================================================
+
+API_URL = "https://solar-power-forecast-agent.onrender.com"
+
+# ==========================================================
 # Page Configuration
-# ---------------------------------------------------
+# ==========================================================
 
 st.set_page_config(
     page_title="Solar Power Forecast Agent",
@@ -13,38 +22,61 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# ---------------------------------------------------
-# Backend Configuration
-# ---------------------------------------------------
-
-API_URL = "https://solar-power-forecast-agent.onrender.com"
 
 # ==========================================================
-# Backend Connection
+# Backend Functions
 # ==========================================================
+
+def get_api_url():
+    """
+    Return the deployed FastAPI backend URL.
+    """
+    return API_URL
+
+
+def health_check():
+    """
+    Check whether the FastAPI backend is available.
+    """
+
+    response = requests.get(
+        f"{API_URL}/health",
+        timeout=20
+    )
+
+    response.raise_for_status()
+
+    return response.json()
+
 
 def check_backend_connection():
     """
     Check and wake the FastAPI backend.
 
-    The frontend automatically calls the backend health
-    endpoint when the Streamlit session starts.
+    The frontend automatically calls the backend
+    health endpoint when the Streamlit session starts.
 
-    The function makes several attempts because Render may
-    need some time to wake a sleeping service.
+    Render may need some time to wake a sleeping service,
+    so multiple attempts are performed.
     """
 
-    # Do not repeatedly wake the backend on every Streamlit
-    # rerun during the same browser session.
+    # ------------------------------------------------------
+    # Avoid checking repeatedly during the same session
+    # ------------------------------------------------------
+
     if st.session_state.get(
         "backend_checked",
-        False,
+        False
     ):
 
         return st.session_state.get(
             "backend_available",
-            False,
+            False
         )
+
+    # ------------------------------------------------------
+    # Initialize connection state
+    # ------------------------------------------------------
 
     st.session_state[
         "backend_checked"
@@ -54,21 +86,25 @@ def check_backend_connection():
         "backend_available"
     ] = False
 
+    # ------------------------------------------------------
+    # Connection attempts
+    # ------------------------------------------------------
+
     max_attempts = 4
 
     for attempt in range(
         1,
-        max_attempts + 1,
+        max_attempts + 1
     ):
 
         try:
 
             result = health_check()
 
-            # Support either:
-            # True
-            # {"status": "healthy"}
-            # {"status": "ok"}
+            # ------------------------------------------------
+            # Support simple True response
+            # ------------------------------------------------
+
             if result is True:
 
                 st.session_state[
@@ -77,15 +113,19 @@ def check_backend_connection():
 
                 return True
 
+            # ------------------------------------------------
+            # Support JSON health response
+            # ------------------------------------------------
+
             if isinstance(
                 result,
-                dict,
+                dict
             ):
 
                 status = str(
                     result.get(
                         "status",
-                        "",
+                        ""
                     )
                 ).lower()
 
@@ -94,7 +134,7 @@ def check_backend_connection():
                     "ok",
                     "online",
                     "running",
-                    "success",
+                    "success"
                 }:
 
                     st.session_state[
@@ -104,9 +144,13 @@ def check_backend_connection():
                     return True
 
         except Exception:
+
             pass
 
-        # Give Render time to wake up before trying again.
+        # ----------------------------------------------------
+        # Wait before retrying
+        # ----------------------------------------------------
+
         if attempt < max_attempts:
 
             time.sleep(
@@ -117,23 +161,12 @@ def check_backend_connection():
 
 
 # ==========================================================
-# Start Backend Connection
+# Load Custom CSS
 # ==========================================================
 
-with st.spinner(
-    "🔄 Connecting to backend...
-    It May Take a Minute"
-):
-
-    backend_available = (
-        check_backend_connection()
-    )
-
-# ---------------------------------------------------
-# Load Custom CSS
-# ---------------------------------------------------
-
-css_file = Path("assets/style.css")
+css_file = Path(
+    "assets/style.css"
+)
 
 if css_file.exists():
 
@@ -147,53 +180,125 @@ if css_file.exists():
             unsafe_allow_html=True
         )
 
-# ---------------------------------------------------
+
+# ==========================================================
+# Start Backend Connection
+# ==========================================================
+
+with st.spinner(
+    "🔄 Connecting to backend... It May Take a Minute"
+):
+
+    backend_available = (
+        check_backend_connection()
+    )
+
+
+# ==========================================================
 # Sidebar
-# ---------------------------------------------------
+# ==========================================================
 
-st.sidebar.image(
-    "assets/logo.png",
-    width=120
-)
+with st.sidebar:
 
-st.sidebar.title(
-    "Solar Power Forecast Agent"
-)
+    # ------------------------------------------------------
+    # Logo
+    # ------------------------------------------------------
 
-st.sidebar.markdown("---")
+    logo = Path(
+        "assets/logo.png"
+    )
 
-st.sidebar.success(
-    "Navigation"
-)
+    if logo.exists():
 
-st.sidebar.info(
-    """
-    Use the pages in the sidebar to navigate through
-    the application.
-    """
-)
+        st.image(
+            str(logo),
+            width=120
+        )
 
-st.sidebar.markdown("---")
+    st.title(
+        "Solar Power Forecast Agent"
+    )
 
-st.sidebar.markdown(
-    "### Project"
-)
+    st.markdown("---")
 
-st.sidebar.write(
-    "Version: 1.0"
-)
+    # ------------------------------------------------------
+    # Backend Status
+    # ------------------------------------------------------
 
-st.sidebar.write(
-    "Model: XGBoost"
-)
+    if backend_available:
 
-st.sidebar.write(
-    "Framework: Streamlit"
-)
+        st.success(
+            "🟢 Backend Connected"
+        )
 
-# ---------------------------------------------------
+    else:
+
+        st.error(
+            "🔴 Backend Unavailable"
+        )
+
+        if st.button(
+            "🔄 Retry Backend",
+            use_container_width=True
+        ):
+
+            st.session_state[
+                "backend_checked"
+            ] = False
+
+            st.session_state[
+                "backend_available"
+            ] = False
+
+            st.rerun()
+
+    st.caption(
+        f"Backend: {get_api_url()}"
+    )
+
+    st.markdown("---")
+
+    # ------------------------------------------------------
+    # Navigation
+    # ------------------------------------------------------
+
+    st.success(
+        "Navigation"
+    )
+
+    st.info(
+        """
+        Use the pages in the sidebar to navigate
+        through the application.
+        """
+    )
+
+    st.markdown("---")
+
+    # ------------------------------------------------------
+    # Project Information
+    # ------------------------------------------------------
+
+    st.markdown(
+        "### Project"
+    )
+
+    st.write(
+        "Version: 1.0"
+    )
+
+    st.write(
+        "Model: XGBoost"
+    )
+
+    st.write(
+        "Framework: Streamlit"
+    )
+
+
+# ==========================================================
 # Main Home Screen
-# ---------------------------------------------------
+# ==========================================================
 
 st.title(
     "☀ Solar Power Forecast Agent"
@@ -205,6 +310,11 @@ st.subheader(
 )
 
 st.markdown("---")
+
+
+# ==========================================================
+# Model Information
+# ==========================================================
 
 col1, col2, col3 = st.columns(3)
 
@@ -229,7 +339,13 @@ with col3:
         "9"
     )
 
+
 st.markdown("---")
+
+
+# ==========================================================
+# Project Overview
+# ==========================================================
 
 st.header(
     "Project Overview"
@@ -240,7 +356,7 @@ st.write(
     This application predicts solar power generation using
     machine learning and weather parameters.
 
-    It also provides
+    It also provides:
 
     - Solar Power Forecasting
     - Live Weather Integration
@@ -252,7 +368,43 @@ st.write(
     """
 )
 
+
 st.markdown("---")
+
+
+# ==========================================================
+# Backend Information
+# ==========================================================
+
+st.header(
+    "Backend Status"
+)
+
+if backend_available:
+
+    st.success(
+        "🟢 FastAPI backend is connected and ready."
+    )
+
+else:
+
+    st.error(
+        """
+        🔴 The FastAPI backend is currently unavailable.
+
+        The frontend will remain available, but prediction
+        and other backend-dependent features may not work
+        until the backend becomes available.
+        """
+    )
+
+
+st.markdown("---")
+
+
+# ==========================================================
+# Project Architecture
+# ==========================================================
 
 st.header(
     "Project Architecture"
@@ -279,7 +431,13 @@ Dashboard & Reports
 """
 )
 
+
 st.markdown("---")
+
+
+# ==========================================================
+# Navigation Information
+# ==========================================================
 
 st.info(
     """
@@ -301,7 +459,13 @@ st.info(
     """
 )
 
+
 st.markdown("---")
+
+
+# ==========================================================
+# Footer
+# ==========================================================
 
 st.caption(
     "© 2026 Solar Power Forecast Agent | "
