@@ -231,10 +231,18 @@ with st.sidebar:
             "🟢 Backend Connected"
         )
 
+        st.caption(
+            API_URL
+        )
+
     else:
 
         st.error(
             "🔴 Backend Unavailable"
+        )
+
+        st.caption(
+            API_URL
         )
 
         if st.button(
@@ -251,10 +259,6 @@ with st.sidebar:
             ] = False
 
             st.rerun()
-
-    st.caption(
-        f"Backend: {get_api_url()}"
-    )
 
     st.markdown("---")
 
