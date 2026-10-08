@@ -232,7 +232,7 @@ with st.sidebar:
         )
 
         st.caption(
-            API_URL
+            f"Backend: {API_URL}"
         )
 
     else:
@@ -242,7 +242,7 @@ with st.sidebar:
         )
 
         st.caption(
-            API_URL
+            f"Backend: {API_URL}"
         )
 
         if st.button(
@@ -259,7 +259,7 @@ with st.sidebar:
             ] = False
 
             st.rerun()
-
+        
     st.markdown("---")
 
     # ------------------------------------------------------
