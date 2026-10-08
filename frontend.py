@@ -11,6 +11,7 @@ import streamlit as st
 
 API_URL = "https://solar-power-forecast-agent.onrender.com"
 
+
 # ==========================================================
 # Page Configuration
 # ==========================================================
@@ -36,12 +37,12 @@ def get_api_url():
 
 def health_check():
     """
-    Check whether the FastAPI backend is available.
+    Check the FastAPI backend health endpoint.
     """
 
     response = requests.get(
         f"{API_URL}/health",
-        timeout=20
+        timeout=10
     )
 
     response.raise_for_status()
@@ -49,113 +50,30 @@ def health_check():
     return response.json()
 
 
-def check_backend_connection():
+def backend_is_healthy(result):
     """
-    Check and wake the FastAPI backend.
-
-    The frontend automatically calls the backend
-    health endpoint when the Streamlit session starts.
-
-    Render may need some time to wake a sleeping service,
-    so multiple attempts are performed.
+    Check supported health-check responses.
     """
 
-    # ------------------------------------------------------
-    # Avoid checking repeatedly during the same session
-    # ------------------------------------------------------
+    if result is True:
+        return True
 
-    if st.session_state.get(
-        "backend_checked",
-        False
-    ):
+    if isinstance(result, dict):
 
-        return st.session_state.get(
-            "backend_available",
-            False
-        )
-
-    # ------------------------------------------------------
-    # Initialize connection state
-    # ------------------------------------------------------
-
-    st.session_state[
-        "backend_checked"
-    ] = True
-
-    st.session_state[
-        "backend_available"
-    ] = False
-
-    # ------------------------------------------------------
-    # Connection attempts
-    # ------------------------------------------------------
-
-    max_attempts = 4
-
-    for attempt in range(
-        1,
-        max_attempts + 1
-    ):
-
-        try:
-
-            result = health_check()
-
-            # ------------------------------------------------
-            # Support simple True response
-            # ------------------------------------------------
-
-            if result is True:
-
-                st.session_state[
-                    "backend_available"
-                ] = True
-
-                return True
-
-            # ------------------------------------------------
-            # Support JSON health response
-            # ------------------------------------------------
-
-            if isinstance(
-                result,
-                dict
-            ):
-
-                status = str(
-                    result.get(
-                        "status",
-                        ""
-                    )
-                ).lower()
-
-                if status in {
-                    "healthy",
-                    "ok",
-                    "online",
-                    "running",
-                    "success"
-                }:
-
-                    st.session_state[
-                        "backend_available"
-                    ] = True
-
-                    return True
-
-        except Exception:
-
-            pass
-
-        # ----------------------------------------------------
-        # Wait before retrying
-        # ----------------------------------------------------
-
-        if attempt < max_attempts:
-
-            time.sleep(
-                attempt * 2
+        status = str(
+            result.get(
+                "status",
+                ""
             )
+        ).lower()
+
+        return status in {
+            "healthy",
+            "ok",
+            "online",
+            "running",
+            "success"
+        }
 
     return False
 
@@ -182,16 +100,28 @@ if css_file.exists():
 
 
 # ==========================================================
-# Start Backend Connection
+# Session State
 # ==========================================================
 
-with st.spinner(
-    "🔄 Connecting to backend... It May Take a Minute"
-):
+if "backend_available" not in st.session_state:
 
-    backend_available = (
-        check_backend_connection()
-    )
+    st.session_state[
+        "backend_available"
+    ] = False
+
+
+if "backend_attempts" not in st.session_state:
+
+    st.session_state[
+        "backend_attempts"
+    ] = 0
+
+
+if "backend_checked" not in st.session_state:
+
+    st.session_state[
+        "backend_checked"
+    ] = False
 
 
 # ==========================================================
@@ -215,40 +145,150 @@ with st.sidebar:
             width=120
         )
 
+    else:
+
+        st.markdown(
+            """
+            <div style="
+                text-align:center;
+                font-size:42px;
+                padding:10px;
+            ">
+                ☀️
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
+
+    # ------------------------------------------------------
+    # Project Title
+    # ------------------------------------------------------
+
     st.title(
         "Solar Power Forecast Agent"
     )
 
-    st.markdown("---")
+    st.markdown(
+        """
+        <div style="
+            font-size:13px;
+            opacity:0.7;
+            margin-bottom:10px;
+        ">
+            AI-powered solar forecasting platform
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
+
+    st.divider()
 
     # ------------------------------------------------------
-    # Backend Status
+    # Backend Status Placeholder
     # ------------------------------------------------------
 
-    if backend_available:
+    backend_status_placeholder = st.empty()
 
-        st.success(
+    backend_url_placeholder = st.empty()
+
+    st.divider()
+
+    # ------------------------------------------------------
+    # Quick Navigation
+    # ------------------------------------------------------
+
+    st.markdown(
+        "### 🧭 Quick Navigation"
+    )
+
+    st.caption(
+        "Use the navigation menu to open the "
+        "different sections of the application."
+    )
+
+    st.divider()
+
+    # ------------------------------------------------------
+    # Project Information
+    # ------------------------------------------------------
+
+    st.markdown(
+        "### Project"
+    )
+
+    st.caption(
+        "Version: 1.0"
+    )
+
+    st.caption(
+        "Model: XGBoost"
+    )
+
+    st.caption(
+        "Framework: Streamlit"
+    )
+
+
+# ==========================================================
+# Backend Connection Fragment
+# ==========================================================
+
+@st.fragment(run_every="2s")
+def backend_connection():
+
+    # ------------------------------------------------------
+    # Already connected
+    # ------------------------------------------------------
+
+    if st.session_state.get(
+        "backend_available",
+        False
+    ):
+
+        backend_status_placeholder.success(
             "🟢 Backend Connected"
         )
 
-        st.caption(
+        backend_url_placeholder.caption(
             f"Backend: {API_URL}"
         )
 
-    else:
+        return
 
-        st.error(
+    # ------------------------------------------------------
+    # Maximum startup attempts
+    # ------------------------------------------------------
+
+    max_attempts = 4
+
+    attempts = st.session_state.get(
+        "backend_attempts",
+        0
+    )
+
+    # ------------------------------------------------------
+    # Backend unavailable after attempts
+    # ------------------------------------------------------
+
+    if attempts >= max_attempts:
+
+        backend_status_placeholder.error(
             "🔴 Backend Unavailable"
         )
 
-        st.caption(
+        backend_url_placeholder.caption(
             f"Backend: {API_URL}"
         )
 
         if st.button(
             "🔄 Retry Backend",
-            use_container_width=True
+            use_container_width=True,
+            key="retry_backend"
         ):
+
+            st.session_state[
+                "backend_attempts"
+            ] = 0
 
             st.session_state[
                 "backend_checked"
@@ -259,45 +299,79 @@ with st.sidebar:
             ] = False
 
             st.rerun()
-        
-    st.markdown("---")
+
+        return
 
     # ------------------------------------------------------
-    # Navigation
+    # Show connecting status
     # ------------------------------------------------------
 
-    st.success(
-        "Navigation"
+    backend_status_placeholder.info(
+        "🔄 Connecting to backend..."
     )
 
-    st.info(
-        """
-        Use the pages in the sidebar to navigate
-        through the application.
-        """
+    backend_url_placeholder.caption(
+        f"Backend: {API_URL}"
     )
-
-    st.markdown("---")
 
     # ------------------------------------------------------
-    # Project Information
+    # Try backend
     # ------------------------------------------------------
 
-    st.markdown(
-        "### Project"
-    )
+    try:
 
-    st.write(
-        "Version: 1.0"
-    )
+        result = health_check()
 
-    st.write(
-        "Model: XGBoost"
-    )
+        if backend_is_healthy(result):
 
-    st.write(
-        "Framework: Streamlit"
-    )
+            st.session_state[
+                "backend_available"
+            ] = True
+
+            st.session_state[
+                "backend_checked"
+            ] = True
+
+            backend_status_placeholder.success(
+                "🟢 Backend Connected"
+            )
+
+            backend_url_placeholder.caption(
+                f"Backend: {API_URL}"
+            )
+
+            return
+
+    except requests.exceptions.Timeout:
+
+        pass
+
+    except requests.exceptions.ConnectionError:
+
+        pass
+
+    except requests.exceptions.RequestException:
+
+        pass
+
+    except Exception:
+
+        pass
+
+    # ------------------------------------------------------
+    # Failed attempt
+    # ------------------------------------------------------
+
+    st.session_state[
+        "backend_attempts"
+    ] = attempts + 1
+
+
+# ==========================================================
+# Start Backend Connection
+# ==========================================================
+
+backend_connection()
 
 
 # ==========================================================
