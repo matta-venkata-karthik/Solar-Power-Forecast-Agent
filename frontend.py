@@ -377,36 +377,6 @@ st.markdown("---")
 
 
 # ==========================================================
-# Backend Information
-# ==========================================================
-
-st.header(
-    "Backend Status"
-)
-
-if backend_available:
-
-    st.success(
-        "🟢 FastAPI backend is connected and ready."
-    )
-
-else:
-
-    st.error(
-        """
-        🔴 The FastAPI backend is currently unavailable.
-
-        The frontend will remain available, but prediction
-        and other backend-dependent features may not work
-        until the backend becomes available.
-        """
-    )
-
-
-st.markdown("---")
-
-
-# ==========================================================
 # Project Architecture
 # ==========================================================
 
