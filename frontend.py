@@ -1,8 +1,3 @@
-# ==========================================================
-# SOLAR POWER FORECAST AGENT
-# Main Streamlit Application
-# ==========================================================
-
 import time
 from pathlib import Path
 
@@ -11,36 +6,10 @@ import streamlit as st
 
 
 # ==========================================================
-# Project Paths
+# Configuration
 # ==========================================================
 
-FRONTEND_DIR = Path(
-    __file__
-).resolve().parent
-
-ASSETS_DIR = (
-    FRONTEND_DIR
-    / "assets"
-)
-
-CSS_PATH = (
-    ASSETS_DIR
-    / "style.css"
-)
-
-LOGO_PATH = (
-    ASSETS_DIR
-    / "logo.png"
-)
-
-
-# ==========================================================
-# Backend Configuration
-# ==========================================================
-
-API_URL = (
-    "https://solar-power-forecast-agent.onrender.com"
-)
+API_URL = "https://solar-power-forecast-agent.onrender.com"
 
 
 # ==========================================================
@@ -51,7 +20,7 @@ st.set_page_config(
     page_title="Solar Power Forecast Agent",
     page_icon="☀️",
     layout="wide",
-    initial_sidebar_state="expanded",
+    initial_sidebar_state="expanded"
 )
 
 
@@ -59,263 +28,19 @@ st.set_page_config(
 # Load Custom CSS
 # ==========================================================
 
-if CSS_PATH.exists():
+css_file = Path("assets/style.css")
 
-    try:
+if css_file.exists():
 
-        with open(
-            CSS_PATH,
-            encoding="utf-8",
-        ) as f:
+    with open(
+        css_file,
+        encoding="utf-8"
+    ) as f:
 
-            st.markdown(
-                f"<style>{f.read()}</style>",
-                unsafe_allow_html=True,
-            )
-
-    except Exception:
-        pass
-
-
-# ==========================================================
-# Backend Functions
-# ==========================================================
-
-def get_api_url():
-    """
-    Return the deployed FastAPI backend URL.
-    """
-
-    return API_URL
-
-
-def health_check():
-    """
-    Check the FastAPI backend health endpoint.
-
-    The function first tries /health. If the backend does
-    not expose /health, it falls back to the root endpoint.
-    """
-
-    # ------------------------------------------------------
-    # Try /health first
-    # ------------------------------------------------------
-
-    try:
-
-        response = requests.get(
-            f"{API_URL}/health",
-            timeout=15,
+        st.markdown(
+            f"<style>{f.read()}</style>",
+            unsafe_allow_html=True
         )
-
-        if response.status_code == 200:
-
-            return response
-
-    except (
-        requests.exceptions.Timeout,
-        requests.exceptions.ConnectionError,
-        requests.exceptions.RequestException,
-    ):
-
-        pass
-
-    # ------------------------------------------------------
-    # Fallback to root endpoint
-    # ------------------------------------------------------
-
-    try:
-
-        response = requests.get(
-            API_URL,
-            timeout=15,
-        )
-
-        if response.status_code == 200:
-
-            return response
-
-    except (
-        requests.exceptions.Timeout,
-        requests.exceptions.ConnectionError,
-        requests.exceptions.RequestException,
-    ):
-
-        pass
-
-    return None
-
-
-def backend_is_healthy(
-    response,
-):
-    """
-    Determine whether the backend response indicates
-    a healthy/running FastAPI service.
-    """
-
-    if response is None:
-
-        return False
-
-    if response.status_code != 200:
-
-        return False
-
-    # ------------------------------------------------------
-    # Try JSON health response
-    # ------------------------------------------------------
-
-    try:
-
-        data = response.json()
-
-        if isinstance(
-            data,
-            dict,
-        ):
-
-            status = str(
-                data.get(
-                    "status",
-                    "",
-                )
-            ).lower()
-
-            if status in {
-                "healthy",
-                "ok",
-                "online",
-                "running",
-                "success",
-            }:
-
-                return True
-
-            # A valid JSON response from the backend is
-            # also considered a successful connection.
-            return True
-
-    except Exception:
-
-        pass
-
-    # ------------------------------------------------------
-    # HTTP 200 is sufficient for root endpoint
-    # ------------------------------------------------------
-
-    return True
-
-
-# ==========================================================
-# Backend Connection
-# ==========================================================
-
-def connect_to_backend():
-    """
-    Automatically connect to the Render backend.
-
-    Render may put the service to sleep after inactivity.
-    Several attempts are made automatically to give Render
-    time to wake the FastAPI application.
-    """
-
-    # ------------------------------------------------------
-    # Already connected
-    # ------------------------------------------------------
-
-    if st.session_state.get(
-        "backend_available",
-        False,
-    ):
-
-        return True
-
-
-    # ------------------------------------------------------
-    # Already checked
-    # ------------------------------------------------------
-
-    if st.session_state.get(
-        "backend_checked",
-        False,
-    ):
-
-        return False
-
-
-    # ------------------------------------------------------
-    # Reset connection state
-    # ------------------------------------------------------
-
-    st.session_state[
-        "backend_available"
-    ] = False
-
-    st.session_state[
-        "backend_attempts"
-    ] = 0
-
-
-    max_attempts = 4
-
-
-    # ------------------------------------------------------
-    # Connection attempts
-    # ------------------------------------------------------
-
-    for attempt in range(
-        1,
-        max_attempts + 1,
-    ):
-
-        st.session_state[
-            "backend_attempts"
-        ] = attempt
-
-
-        response = health_check()
-
-
-        if backend_is_healthy(
-            response
-        ):
-
-            st.session_state[
-                "backend_available"
-            ] = True
-
-            st.session_state[
-                "backend_checked"
-            ] = True
-
-            return True
-
-
-        # --------------------------------------------------
-        # Wait for Render cold start
-        # --------------------------------------------------
-
-        if attempt < max_attempts:
-
-            time.sleep(
-                attempt * 2
-            )
-
-
-    # ------------------------------------------------------
-    # Backend unavailable
-    # ------------------------------------------------------
-
-    st.session_state[
-        "backend_available"
-    ] = False
-
-    st.session_state[
-        "backend_checked"
-    ] = True
-
-    return False
 
 
 # ==========================================================
@@ -344,30 +69,104 @@ if "backend_attempts" not in st.session_state:
 
 
 # ==========================================================
-# Backend Startup Connection
+# Backend Functions
 # ==========================================================
 
-if not st.session_state.get(
-    "backend_checked",
-    False,
-):
+def health_check():
+    """
+    Check the FastAPI backend health endpoint.
+    """
 
-    with st.spinner(
-        "🔄 Connecting to Solar Power Forecast backend..."
+    response = requests.get(
+        f"{API_URL}/health",
+        timeout=10
+    )
+
+    response.raise_for_status()
+
+    return response.json()
+
+
+def is_backend_healthy(data):
+    """
+    Validate the FastAPI health response.
+    """
+
+    if data is True:
+        return True
+
+    if isinstance(data, dict):
+
+        status = str(
+            data.get(
+                "status",
+                ""
+            )
+        ).lower()
+
+        return status in {
+            "healthy",
+            "ok",
+            "online",
+            "running",
+            "success"
+        }
+
+    return False
+
+
+def check_backend():
+    """
+    Try to connect to the FastAPI backend.
+
+    Render may need time to wake up, so the
+    frontend makes several attempts.
+    """
+
+    max_attempts = 4
+
+    current_attempt = st.session_state.get(
+        "backend_attempts",
+        0
+    )
+
+    if current_attempt >= max_attempts:
+
+        return False
+
+    try:
+
+        result = health_check()
+
+        if is_backend_healthy(result):
+
+            st.session_state[
+                "backend_available"
+            ] = True
+
+            st.session_state[
+                "backend_checked"
+            ] = True
+
+            return True
+
+    except (
+        requests.exceptions.Timeout,
+        requests.exceptions.ConnectionError,
+        requests.exceptions.RequestException
     ):
 
-        backend_available = (
-            connect_to_backend()
-        )
+        pass
 
-else:
+    except Exception:
 
-    backend_available = (
-        st.session_state.get(
-            "backend_available",
-            False,
-        )
-    )
+        pass
+
+    st.session_state[
+        "backend_attempts"
+    ] = current_attempt + 1
+
+    return False
 
 
 # ==========================================================
@@ -380,57 +179,48 @@ with st.sidebar:
     # Logo
     # ------------------------------------------------------
 
-    if LOGO_PATH.exists():
+    logo = Path(
+        "assets/logo.png"
+    )
+
+    if logo.exists():
 
         st.image(
-            str(LOGO_PATH),
-            width=120,
+            str(logo),
+            width=120
         )
-
-    else:
-
-        st.markdown(
-            """
-            <div style="
-                text-align:center;
-                font-size:48px;
-                padding:10px;
-            ">
-                ☀️
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
-
 
     # ------------------------------------------------------
     # Project Title
     # ------------------------------------------------------
 
+    st.title(
+        "Solar Power Forecast Agent"
+    )
+
     st.markdown(
         """
         <div style="
-            font-size:23px;
-            font-weight:700;
-            line-height:1.2;
-            margin-top:12px;
-            margin-bottom:18px;
+            font-size:13px;
+            opacity:0.7;
+            margin-bottom:10px;
         ">
-            Solar Power Forecast Agent
+            AI-powered solar forecasting platform
         </div>
         """,
-        unsafe_allow_html=True,
+        unsafe_allow_html=True
     )
-
 
     st.divider()
 
+    # ------------------------------------------------------
+    # Backend Status
+    # ------------------------------------------------------
 
-    # ======================================================
-    # BACKEND STATUS
-    # ======================================================
-
-    if backend_available:
+    if st.session_state.get(
+        "backend_available",
+        False
+    ):
 
         st.success(
             "🟢 Backend Connected"
@@ -438,91 +228,70 @@ with st.sidebar:
 
     else:
 
-        st.error(
-            "🔴 Backend Unavailable"
+        st.info(
+            "🔄 Connecting to backend..."
         )
 
-
-    # ------------------------------------------------------
-    # Backend URL
-    # ------------------------------------------------------
-
     st.caption(
-        f"Backend: {get_api_url()}"
+        f"Backend: {API_URL}"
     )
 
-
     # ------------------------------------------------------
-    # Retry Backend
+    # Retry Button
     # ------------------------------------------------------
 
-    if not backend_available:
+    if not st.session_state.get(
+        "backend_available",
+        False
+    ):
 
-        if st.button(
-            "🔄 Retry Backend",
-            use_container_width=True,
-            key="sidebar_retry_backend",
-        ):
+        if st.session_state.get(
+            "backend_attempts",
+            0
+        ) >= 4:
 
-            st.session_state[
-                "backend_checked"
-            ] = False
+            if st.button(
+                "🔄 Retry Backend",
+                use_container_width=True
+            ):
 
-            st.session_state[
-                "backend_available"
-            ] = False
+                st.session_state[
+                    "backend_attempts"
+                ] = 0
 
-            st.session_state[
-                "backend_attempts"
-            ] = 0
+                st.session_state[
+                    "backend_checked"
+                ] = False
 
-            st.rerun()
+                st.session_state[
+                    "backend_available"
+                ] = False
 
+                st.rerun()
 
     st.divider()
 
-
     # ------------------------------------------------------
-    # Navigation Information
+    # Quick Navigation
     # ------------------------------------------------------
 
     st.markdown(
-        """
-        <div style="
-            font-weight:700;
-            font-size:18px;
-            margin-bottom:10px;
-        ">
-            🧭 Navigation
-        </div>
-        """,
-        unsafe_allow_html=True,
+        "### 🧭 Quick Navigation"
     )
 
-    st.info(
-        "Use the pages in the sidebar to navigate "
-        "through the application."
+    st.caption(
+        "Use the navigation menu to open the "
+        "different sections of the application."
     )
-
 
     st.divider()
-
 
     # ------------------------------------------------------
     # Project Information
     # ------------------------------------------------------
 
     st.markdown(
-        """
-        <div style="
-            font-weight:700;
-            font-size:18px;
-            margin-bottom:10px;
-        ">
-            Project
-        </div>
-        """,
-        unsafe_allow_html=True,
+        "### Project"
     )
 
     st.caption(
@@ -539,7 +308,58 @@ with st.sidebar:
 
 
 # ==========================================================
-# Main Page
+# Backend Connection
+# ==========================================================
+
+if not st.session_state.get(
+    "backend_available",
+    False
+):
+
+    if not st.session_state.get(
+        "backend_checked",
+        False
+    ):
+
+        # --------------------------------------------------
+        # Try backend connection
+        # --------------------------------------------------
+
+        backend_connected = check_backend()
+
+        if backend_connected:
+
+            st.session_state[
+                "backend_checked"
+            ] = True
+
+            st.rerun()
+
+        else:
+
+            # ------------------------------------------------
+            # Allow the page to render first.
+            # The next Streamlit rerun will try again.
+            # ------------------------------------------------
+
+            if st.session_state.get(
+                "backend_attempts",
+                0
+            ) < 4:
+
+                time.sleep(0.2)
+
+                st.rerun()
+
+            else:
+
+                st.session_state[
+                    "backend_checked"
+                ] = True
+
+
+# ==========================================================
+# Main Home Screen
 # ==========================================================
 
 st.title(
@@ -551,34 +371,7 @@ st.subheader(
     "Recommendation System"
 )
 
-
 st.markdown("---")
-
-
-# ==========================================================
-# Backend Main Status
-# ==========================================================
-
-if backend_available:
-
-    st.success(
-        "🟢 Backend is connected. "
-        "The application is ready to use."
-    )
-
-else:
-
-    st.warning(
-        """
-        🟡 The frontend is running, but the FastAPI
-        backend is currently unavailable.
-
-        Render may still be waking the backend.
-
-        Please use **Retry Backend** from the sidebar
-        after a short wait.
-        """
-    )
 
 
 # ==========================================================
@@ -587,28 +380,25 @@ else:
 
 col1, col2, col3 = st.columns(3)
 
-
 with col1:
 
     st.metric(
         "Machine Learning Model",
-        "XGBoost",
+        "XGBoost"
     )
-
 
 with col2:
 
     st.metric(
         "Forecast Type",
-        "Regression",
+        "Regression"
     )
-
 
 with col3:
 
     st.metric(
         "Weather Features",
-        "9",
+        "9"
     )
 
 
@@ -625,25 +415,19 @@ st.header(
 
 st.write(
     """
-This application predicts solar power generation using
-machine learning and weather parameters.
-"""
-)
+    This application predicts solar power generation using
+    machine learning and weather parameters.
 
-st.write(
-    "It also provides:"
-)
+    It also provides:
 
-st.markdown(
+    - Solar Power Forecasting
+    - Live Weather Integration
+    - AI Energy Assistant
+    - Prediction History
+    - Analytics Dashboard
+    - Report Generation
+    - Admin Dashboard
     """
-- Solar Power Forecasting
-- Live Weather Integration
-- AI Energy Assistant
-- Prediction History
-- Analytics Dashboard
-- Report Generation
-- Admin Dashboard
-"""
 )
 
 
@@ -687,140 +471,25 @@ st.markdown("---")
 # Navigation Information
 # ==========================================================
 
-st.header(
-    "Application Navigation"
-)
-
 st.info(
     """
-👈 Use the sidebar to access:
+    👈 Use the sidebar to access:
 
-• Solar Forecast
+    • Solar Forecast
 
-• Live Weather
+    • Live Weather
 
-• AI Energy Assistant
+    • AI Energy Assistant
 
-• History
+    • History
 
-• Analytics
+    • Analytics
 
-• Admin Dashboard
+    • Admin Dashboard
 
-• Settings
-"""
+    • Settings
+    """
 )
-
-
-st.markdown("---")
-
-
-# ==========================================================
-# Application Status
-# ==========================================================
-
-st.header(
-    "💻 Application Status"
-)
-
-status_col1, status_col2 = st.columns(2)
-
-
-with status_col1:
-
-    if backend_available:
-
-        st.success(
-            "🟢 Backend Connected"
-        )
-
-    else:
-
-        st.error(
-            "🔴 Backend Unavailable"
-        )
-
-
-with status_col2:
-
-    st.info(
-        f"Backend: {get_api_url()}"
-    )
-
-
-st.markdown("---")
-
-
-# ==========================================================
-# System Information
-# ==========================================================
-
-st.header(
-    "System Information"
-)
-
-info1, info2, info3, info4 = st.columns(4)
-
-
-with info1:
-
-    st.metric(
-        "Backend",
-        "FastAPI",
-    )
-
-
-with info2:
-
-    st.metric(
-        "Frontend",
-        "Streamlit",
-    )
-
-
-with info3:
-
-    st.metric(
-        "Machine Learning",
-        "XGBoost",
-    )
-
-
-with info4:
-
-    st.metric(
-        "Weather Features",
-        "9",
-    )
-
-
-st.markdown("---")
-
-
-# ==========================================================
-# Backend Information
-# ==========================================================
-
-st.subheader(
-    "🔗 Backend Connection"
-)
-
-st.code(
-    get_api_url()
-)
-
-
-if backend_available:
-
-    st.success(
-        "✅ FastAPI backend is online and responding."
-    )
-
-else:
-
-    st.warning(
-        "⚠️ FastAPI backend is not responding yet."
-    )
 
 
 st.markdown("---")
