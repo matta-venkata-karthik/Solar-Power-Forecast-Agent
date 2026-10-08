@@ -19,22 +19,115 @@ st.set_page_config(
 
 API_URL = "https://solar-power-forecast-agent.onrender.com"
 
-# ---------------------------------------------------
-# Wake Up Backend
-# ---------------------------------------------------
+# ==========================================================
+# Backend Connection
+# ==========================================================
 
-try:
+def check_backend_connection():
+    """
+    Check and wake the FastAPI backend.
 
-    requests.get(
-        f"{API_URL}/",
-        timeout=30
+    The frontend automatically calls the backend health
+    endpoint when the Streamlit session starts.
+
+    The function makes several attempts because Render may
+    need some time to wake a sleeping service.
+    """
+
+    # Do not repeatedly wake the backend on every Streamlit
+    # rerun during the same browser session.
+    if st.session_state.get(
+        "backend_checked",
+        False,
+    ):
+
+        return st.session_state.get(
+            "backend_available",
+            False,
+        )
+
+    st.session_state[
+        "backend_checked"
+    ] = True
+
+    st.session_state[
+        "backend_available"
+    ] = False
+
+    max_attempts = 4
+
+    for attempt in range(
+        1,
+        max_attempts + 1,
+    ):
+
+        try:
+
+            result = health_check()
+
+            # Support either:
+            # True
+            # {"status": "healthy"}
+            # {"status": "ok"}
+            if result is True:
+
+                st.session_state[
+                    "backend_available"
+                ] = True
+
+                return True
+
+            if isinstance(
+                result,
+                dict,
+            ):
+
+                status = str(
+                    result.get(
+                        "status",
+                        "",
+                    )
+                ).lower()
+
+                if status in {
+                    "healthy",
+                    "ok",
+                    "online",
+                    "running",
+                    "success",
+                }:
+
+                    st.session_state[
+                        "backend_available"
+                    ] = True
+
+                    return True
+
+        except Exception:
+            pass
+
+        # Give Render time to wake up before trying again.
+        if attempt < max_attempts:
+
+            time.sleep(
+                attempt * 2
+            )
+
+    return False
+
+
+# ==========================================================
+# Start Backend Connection
+# ==========================================================
+
+with st.spinner(
+    "🔄 Connecting to backend...
+    It May Take a Minute"
+):
+
+    backend_available = (
+        check_backend_connection()
     )
-
-except requests.exceptions.RequestException:
-
-    # Do not stop the frontend if the backend
-    # takes time to wake up.
-    pass
 
 # ---------------------------------------------------
 # Load Custom CSS
